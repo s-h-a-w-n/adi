@@ -1,0 +1,38 @@
+name: Deploy to Kubernetes
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up Kubernetes
+      uses: azure/setup-kubectl@v1
+      with:
+        version: 'latest'
+
+    - name: Set up SOPS
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y sops
+
+    - name: Decrypt config.yaml
+      env:
+        SOPS_AGE_KEY_FILE: ${{ secrets.SOPS_AGE_KEY_FILE }}
+      run: |
+        sops -d backend/config/config.yaml.enc > backend/config/config.yaml
+
+    - name: Create Kubernetes Secret
+      run: |
+        kubectl create secret generic app-config --from-file=config.yaml=backend/config/config.yaml -n adi --dry-run=client -o yaml | kubectl apply -f -
+
+    - name: Apply Kubernetes Manifests
+      run: |
+        kubectl apply -f deployment.yaml

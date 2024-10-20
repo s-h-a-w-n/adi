@@ -1,0 +1,11 @@
+// Import Bootstrap functions and variables
+@import "~bootstrap/scss/functions";
+@import "~bootstrap/scss/variables";
+
+// Override Bootstrap variables
+$primary: #ff5733;
+$secondary: #33c1ff;
+$body-bg: #f8f9fa;
+
+// Import Bootstrap
+@import "~bootstrap/scss/bootstrap";

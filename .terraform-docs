@@ -1,0 +1,31 @@
+version: "0.19.0"
+formatter: markdown
+output-file: README.md
+output-mode: inject
+
+sections:
+  show:
+    - header
+    - inputs
+    - outputs
+    - providers
+    - requirements
+    - resources
+
+settings:
+  indent: 2
+  escape: false
+  sort:
+    enabled: true
+    by: name
+  required: true
+  color: false
+  default: true
+  description: true
+  type: true
+  sensitive: true
+  deprecated: true
+
+# recursive:
+#   enabled: true
+#   path: "./"

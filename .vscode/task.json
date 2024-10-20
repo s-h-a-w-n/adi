@@ -1,0 +1,39 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build Frontend Docker Image",
+      "type": "shell",
+      "command": "docker build -t adi-frontend:dev .",
+      "options": {
+        "cwd": "${workspaceFolder}/frontend"
+      },
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Build Backend Docker Image",
+      "type": "shell",
+      "command": "docker build -t adi-backend:dev .",
+      "options": {
+        "cwd": "${workspaceFolder}/backend"
+      },
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Run Frontend Docker Container",
+      "type": "shell",
+      "command": "docker run -d -p 80:80 adi-frontend:dev",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Run Backend Docker Container",
+      "type": "shell",
+      "command": "docker run -d -p 3001:3001 adi-backend:dev",
+      "group": "build",
+      "problemMatcher": []
+    }
+  ]
+}

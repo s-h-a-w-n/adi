@@ -1,0 +1,32 @@
+services:
+  frontend:
+    image: adi-frontend:dev
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - backend
+    networks:
+      - private
+
+  backend:
+    image: adi-backend:dev
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+    volumes:
+      - ./backend/config/config.yaml:/etc/secrets/config.yaml:ro
+    networks:
+      - private
+
+networks:
+  private:
+    driver: bridge

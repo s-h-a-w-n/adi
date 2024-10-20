@@ -1,0 +1,46 @@
+/* Prevent column names from wrapping */
+.no-wrap {
+  white-space: nowrap;
+}
+
+/* Make the header sticky */
+.sticky-header {
+  position: sticky;
+  top: 0;
+  background-color: white;
+  z-index: 1;
+}
+
+/* Improve table styling */
+.patterns-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+  margin-bottom: 1rem;
+  color: #212529;
+}
+
+.patterns-table th,
+.patterns-table td {
+  padding: 0.75rem;
+  vertical-align: top;
+  border-top: 1px solid #dee2e6;
+}
+
+.patterns-table thead th {
+  vertical-align: bottom;
+  border-bottom: 2px solid #dee2e6;
+}
+
+.patterns-table tbody+tbody {
+  border-top: 2px solid #dee2e6;
+}
+
+.patterns-table .sticky-header th {
+  background-color: #f8f9fa;
+}
+
+/* Prohibit right-clicks */
+.patterns-table {
+  user-select: none;
+}
