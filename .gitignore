@@ -1,31 +1,37 @@
-# Ignore config.yaml
-backend/config/config.yaml
-backend/config/credentials.json
-backend/config/config.yaml.base64
+# Local .terraform directories
+**/.terraform/*
 
-# Ignore encrypted config file (if you want to keep it out of the repo)
-backend/config/config.yaml.enc
+# .tfstate files
+*.tfstate
+*.tfstate.*
 
-# Node modules
-node_modules/
+# Crash log files
+crash.log
+crash.*.log
 
-# Logs
-logs
-*.log
-npm-debug.log*
+# Exclude all .tfvars files, which are likely to contain sensitive data, such as
+# password, private keys, and other secrets. These should not be part of version 
+# control as they are data points which are potentially sensitive and subject 
+# to change depending on the environment.
+*.tfvars
+*.tfvars.json
 
-# Dependency directories
-frontend/node_modules/
-backend/node_modules/
+# Ignore override files as they are usually used to override resources locally and so
+# are not checked in
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
 
-# Build directories
-dist/
-build/
+# Ignore transient lock info files created by terraform apply
+.terraform.tfstate.lock.info
 
-# Environment variables
-.env
-.env.local
-.env.*.local
+# Include override files you do wish to add to version control using negated pattern
+# !example_override.tf
 
-# Ignore other sensitive files
-secrets/
+# Include tfplan files to ignore the plan output of command: terraform plan -out=tfplan
+# example: *tfplan*
+
+# Ignore CLI configuration files
+.terraformrc
+terraform.rc

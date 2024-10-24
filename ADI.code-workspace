@@ -10,7 +10,8 @@
       "**/node_modules": true,
       "**/dist": true,
       "**/build": true
-    }
+    },
+    "git.ignoreLimitWarning": true
   },
   "tasks": {
     "version": "2.0.0",
