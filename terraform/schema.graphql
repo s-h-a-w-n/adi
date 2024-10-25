@@ -1,0 +1,15 @@
+type Pattern {
+  id: ID!
+  name: String!
+  garmentType: String!
+  wovenOrKnits: String!
+  description: String!
+  freeType: String!
+  inclusivity: String!
+  detailedInstructions: Boolean!
+  made: Boolean!
+}
+
+type Query {
+  getPatterns: [Pattern]
+}

@@ -2,6 +2,8 @@ data "aws_availability_zones" "available" {
   state = "available"
 }
 
+data "aws_caller_identity" "current" {}
+
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
   version = "5.14.0"
@@ -20,6 +22,16 @@ module "vpc" {
 
   enable_nat_gateway = false
   enable_vpn_gateway = false
+
+  tags = local.tags
+}
+
+module "acm" {
+  source  = "terraform-aws-modules/acm/aws"
+  version = "5.1.1"
+
+  domain_name       = var.domain_name
+  validation_method = "DNS"
 
   tags = local.tags
 }
@@ -62,7 +74,6 @@ module "alb_frontend" {
   }
 
   listeners = {
-
     http_https_redirect = {
       port     = 80
       protocol = "HTTP"
@@ -125,18 +136,11 @@ module "alb_backend" {
 
   security_group_ingress_rules = {
     all_http = {
-      from_port   = 80
-      to_port     = 80
-      ip_protocol = "tcp"
-      description = "HTTP web traffic"
-      cidr_ipv4   = "0.0.0.0/0"
-    }
-    all_https = {
-      from_port   = 443
-      to_port     = 443
-      ip_protocol = "tcp"
-      description = "HTTPS web traffic"
-      cidr_ipv4   = "0.0.0.0/0"
+      from_port                    = 80
+      to_port                      = 80
+      ip_protocol                  = "tcp"
+      description                  = "HTTP web traffic"
+      referenced_security_group_id = module.frontend_container_sg.security_group_id
     }
   }
 
@@ -324,42 +328,46 @@ module "ecs" {
   tags = local.tags
 }
 
-module "app_sg" {
-  source  = "terraform-aws-modules/security-group/aws"
-  version = "4.0.0"
-
-  name        = "${var.prefix}-app-sg"
-  description = "Security group for the application"
-  vpc_id      = module.vpc.vpc_id
-
-  ingress_cidr_blocks = ["0.0.0.0/0"]
-  ingress_rules       = ["http-80-tcp"]
-  egress_rules        = ["all-all"]
-
-  tags = local.tags
-}
-
-module "api_sg" {
+module "frontend_container_sg" {
   source  = "terraform-aws-modules/security-group/aws"
   version = "5.2.0"
 
-  name        = "${var.prefix}-api-sg"
-  description = "Security group for the API"
+  name        = "${var.prefix}-frontend-container-sg"
+  description = "Security group for the frontend container"
   vpc_id      = module.vpc.vpc_id
 
-  ingress_cidr_blocks = ["0.0.0.0/0"]
-  ingress_rules       = ["http-8080-tcp"]
-  egress_rules        = ["all-all"]
+  ingress_with_source_security_group_id = [
+    {
+      from_port                = 3000
+      to_port                  = 3000
+      protocol                 = "tcp"
+      description              = "Allow traffic from ALB"
+      source_security_group_id = module.alb_frontend.security_group_id
+    }
+  ]
+  egress_rules = ["all-all"]
 
   tags = local.tags
 }
 
-module "acm" {
-  source  = "terraform-aws-modules/acm/aws"
-  version = "5.1.1"
+module "backend_container_sg" {
+  source  = "terraform-aws-modules/security-group/aws"
+  version = "5.2.0"
 
-  domain_name       = var.domain_name
-  validation_method = "DNS"
+  name        = "${var.prefix}-backend-container-sg"
+  description = "Security group for the backend container"
+  vpc_id      = module.vpc.vpc_id
+
+  ingress_with_source_security_group_id = [
+    {
+      from_port                = 8080
+      to_port                  = 8080
+      protocol                 = "tcp"
+      description              = "Allow traffic from ALB"
+      source_security_group_id = module.alb_backend.security_group_id
+    }
+  ]
+  egress_rules = ["all-all"]
 
   tags = local.tags
 }
@@ -384,7 +392,7 @@ module "rds" {
   db_parameter_group_name = "${var.prefix}-aurora-parameter-group"
 
   create_security_group  = false
-  vpc_security_group_ids = [module.api_sg.security_group_id]
+  vpc_security_group_ids = [module.backend_container_sg.security_group_id]
 
   tags = local.tags
 }
@@ -417,4 +425,146 @@ resource "aws_lb_target_group" "backend_target_group" {
     healthy_threshold   = 2
     unhealthy_threshold = 2
   }
+}
+
+# AWS AppSync Configuration
+module "appsync" {
+  source  = "terraform-aws-modules/appsync/aws"
+  version = "2.5.1"
+
+  name = "${var.prefix}-graphql-api"
+
+  schema = file("${path.module}/schema.graphql")
+
+  visibility = "GLOBAL"
+
+  domain_name_association_enabled = false
+  caching_enabled                 = false
+
+  introspection_config = "ENABLED"
+  query_depth_limit    = 10
+  resolver_count_limit = 25
+
+  api_keys = {
+    default = null
+  }
+
+  authentication_type = "API_KEY"
+
+  additional_authentication_provider = {
+    iam = {
+      authentication_type = "AWS_IAM"
+    }
+  }
+
+  datasources = {
+    rds = {
+      type          = "RELATIONAL_DATABASE"
+      cluster_arn   = module.rds.rds_cluster_arn
+      secret_arn    = aws_secretsmanager_secret.rds_secret.arn
+      database_name = "coolsewingstuff"
+      schema        = "public"
+    }
+  }
+
+  resolvers = {
+    "Query.getPatterns" = {
+      data_source       = "rds"
+      type              = "Query"
+      field             = "getPatterns"
+      request_template  = file("${path.module}/request-mapping-template.vtl")
+      response_template = file("${path.module}/response-mapping-template.vtl")
+    }
+  }
+
+  tags = local.tags
+}
+
+resource "aws_secretsmanager_secret" "rds_secret" {
+  name = "${var.prefix}-rds-secret"
+
+  tags = local.tags
+}
+
+resource "aws_iam_role" "rds_access_role" {
+  name = "${var.prefix}-rds-access-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "rds.amazonaws.com"
+        }
+      }
+    ]
+  })
+
+  tags = local.tags
+}
+
+resource "aws_iam_role_policy" "rds_access_policy" {
+  name = "${var.prefix}-rds-access-policy"
+  role = aws_iam_role.rds_access_role.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = [
+          "rds-db:connect"
+        ]
+        Effect   = "Allow"
+        Resource = "arn:aws:rds-db:${var.region}:${data.aws_caller_identity.current.account_id}:dbuser:${module.rds.rds_cluster_id}/dbuser"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role" "appsync_service_role" {
+  name = "${var.prefix}-appsync-service-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "appsync.amazonaws.com"
+        }
+      }
+    ]
+  })
+
+  tags = local.tags
+}
+
+resource "aws_iam_role_policy" "appsync_service_role_policy" {
+  name = "${var.prefix}-appsync-service-role-policy"
+  role = aws_iam_role.appsync_service_role.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = [
+          "rds-data:ExecuteStatement",
+          "rds-data:BatchExecuteStatement",
+          "rds-data:BeginTransaction",
+          "rds-data:CommitTransaction",
+          "rds-data:RollbackTransaction"
+        ]
+        Effect   = "Allow"
+        Resource = module.rds.rds_cluster_arn
+      },
+      {
+        Action = [
+          "secretsmanager:GetSecretValue"
+        ]
+        Effect   = "Allow"
+        Resource = aws_secretsmanager_secret.rds_secret.arn
+      }
+    ]
+  })
 }
